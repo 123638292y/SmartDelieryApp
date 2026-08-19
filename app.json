@@ -4,7 +4,7 @@
     "slug": "monProjet",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/delivery-icon.png",
     "scheme": "monprojet",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -20,22 +20,21 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
+          "backgroundColor": "#10B981",
+          "image": "./assets/images/delivery-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      "@rnmapbox/maps"
     ],
     "experiments": {
-      "typedRoutes": true,
       "reactCompiler": true
     }
   }
