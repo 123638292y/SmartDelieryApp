@@ -2,6 +2,7 @@ const db = require('../config/database');
 const { spawn } = require('child_process');
 const path = require('path');
 const socketHandler = require('../socket/socketHandler');
+const axios = require('axios');
 
 // =========================================================
 // UTILS
@@ -276,17 +277,42 @@ updateDetailQuantity: async (req, res) => {
     }
 },
 
-    updateLivraisonStatus: async (req, res) => {
-        const { id_doc } = req.params;
-        const { status } = req.body; // التوقع: 'T' أو 'C' أو ''
-        try {
-            await db.query(`UPDATE delivery SET status = ?, delivery_status = ?, dat_upd = NOW() WHERE id = ?`, 
-                [status, status ? status.charAt(0) : '', id_doc]);
-            res.json({ success: true });
-        } catch (error) {
-            res.status(500).json({ success: false });
+   updateLivraisonStatus: async (req, res) => {
+    const { id_doc } = req.params;
+    const { status } = req.body;
+
+    const idInstance = "710522726361";
+    const apiTokenInstance = "f4c7ef3600eb4b8fbff46ab2959cace2d094d7a31b8144d29c";
+
+    try {
+        const [deliveryData] = await db.query(`
+            SELECT c.nom, c.mobil, c.tel1 
+            FROM delivery d
+            JOIN clients c ON d.id_clt = c.id 
+            WHERE d.id = ?`, [id_doc]);
+
+        await db.query(`UPDATE delivery SET status = ?, delivery_status = ?, dat_upd = NOW() WHERE id = ?`, 
+            [status, status ? status.charAt(0) : '', id_doc]);
+
+        if (deliveryData.length > 0 && status === 'T') {
+            const client = deliveryData[0];
+            const phone = (client.mobil || client.tel1).replace(/\D/g, '');
+
+            if (phone) {
+                const chatId = phone.includes('216') ? `${phone}@c.us` : `216${phone}@c.us`;
+                
+                axios.post(`https://api.green-api.com/waInstance${idInstance}/sendMessage/${apiTokenInstance}`, {
+                    chatId: chatId,
+                    message: `Bonjour ${client.nom}, votre livraison pour la commande n°${id_doc} est en cours.`
+                }).catch(err => console.error(err));
+            }
         }
-    },
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false });
+    }
+},
 
 getDeliveryStats: async (req, res) => {
     const { identification_no } = req.params;

@@ -8,7 +8,84 @@ const sendEmail = require('../utils/sendEmail'); // <<-- Import de ton utilitair
 
 const AuthController = {
   
-  // 1. CONNEXION (LOGIN)
+adminLogin: async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const query = `
+      SELECT id, email, phone, first_name, last_name, password, role, is_active, is_online, last_login
+      FROM driver_auth 
+      WHERE email = ? 
+      LIMIT 1
+    `;
+    
+    const result = await db.query(query, [email]);
+    const rows = Array.isArray(result[0]) ? result[0] : result;
+
+    if (!rows || rows.length === 0) {
+      return res.status(401).json({ 
+        success: false, 
+        message: "Identifiants incorrects" 
+      });
+    }
+
+    const adminAuth = rows[0];
+
+    if (adminAuth.role !== 'admin') {
+      return res.status(403).json({ 
+        success: false, 
+        message: "Accès réservé aux administrateurs" 
+      });
+    }
+
+    if (adminAuth.is_active === 0) {
+      return res.status(403).json({ 
+        success: false, 
+        message: "Ce compte est désactivé" 
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, adminAuth.password);
+    if (!isMatch) {
+      return res.status(401).json({ 
+        success: false, 
+        message: "Identifiants incorrects" 
+      });
+    }
+
+    await db.query(
+      'UPDATE driver_auth SET last_login = NOW(), is_online = 1 WHERE id = ?', 
+      [adminAuth.id]
+    );
+
+    const token = jwt.sign(
+      { id: adminAuth.id, role: adminAuth.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      admin: {
+        id: adminAuth.id,
+        email: adminAuth.email,
+        first_name: adminAuth.first_name,
+        last_name: adminAuth.last_name,
+        phone: adminAuth.phone,
+        role: adminAuth.role,
+        is_online: 1,
+        is_active: adminAuth.is_active,
+        last_login: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Erreur serveur"
+    });
+  }},
 login: async (req, res) => {
     const { email, password } = req.body;
     try {
@@ -227,6 +304,47 @@ logout: async (req, res) => {
       res.status(500).json({ success: false, message: "Erreur lors de la mise à jour" });
     }
   },
+  updateAdminProfile: async (req, res) => {
+  const { id } = req.admin; 
+  const { first_name, last_name, email, phone, password } = req.body;
+
+  try {
+    let fields = [];
+    let params = [];
+
+    if (first_name) { fields.push("first_name = ?"); params.push(first_name); }
+    if (last_name) { fields.push("last_name = ?"); params.push(last_name); }
+    if (email) { fields.push("email = ?"); params.push(email); }
+    if (phone) { fields.push("phone = ?"); params.push(phone); }
+
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      fields.push("password = ?");
+      params.push(hashedPassword);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ success: false, message: "Aucune donnée à modifier" });
+    }
+
+    fields.push("dat_upd = NOW()", "usr_upd = ?");
+    params.push(req.admin.login, id);
+
+    const query = `UPDATE driver_auth SET ${fields.join(", ")} WHERE id = ? AND id_driver IS NULL`;
+    const [result] = await db.query(query, params);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: "Admin introuvable" });
+    }
+
+    res.json({ success: true, message: "Profil Administrateur mis à jour" });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ success: false, message: "Email ou téléphone déjà utilisé" });
+    }
+    res.status(500).json({ success: false, message: "Erreur serveur" });
+  }
+},
  forgotPassword: async (req, res) => {
     const { email } = req.body;
     try {

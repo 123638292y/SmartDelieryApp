@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 
-const IP_LOCALE = "192.168.1.103"; 
+const IP_LOCALE = "192.168.20.141"; 
 const BASE_URL_SERVER = Platform.OS === 'web' 
   ? `http://localhost:5000/api` 
   : `http://${IP_LOCALE}:5000/api`;

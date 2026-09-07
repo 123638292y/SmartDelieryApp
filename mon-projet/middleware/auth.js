@@ -10,12 +10,11 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({ success: false, message: "Token requis" });
     }
 
-    // --- EL TASLI7A HONI ---
-    // Nesta3mlou nafss el variable mta3 el .env
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // ✅ تحسين: نجيبو الدور مع البيانات
     const rows = await db.query(
-      "SELECT id, email, is_active FROM driver_auth WHERE id = ? LIMIT 1",
+      "SELECT id, email, is_active, role FROM driver_auth WHERE id = ? LIMIT 1",
       [decoded.id]
     );
 
@@ -23,7 +22,14 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({ success: false, message: "Utilisateur introuvable" });
     }
 
-    req.driver = rows[0];
+    const driver = rows[0];
+
+    // ✅ تحقق من الحساب مفعل
+    if (driver.is_active === 0) {
+      return res.status(403).json({ success: false, message: "Compte désactivé" });
+    }
+
+    req.driver = driver; // الآن فيه id, email, is_active, role
     next();
   } catch (error) {
     console.log("❌ JWT Verification Error:", error.message);

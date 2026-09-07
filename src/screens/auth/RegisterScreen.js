@@ -2,8 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { memo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -24,7 +24,8 @@ const InputField = memo(({
   error, 
   secure = false, 
   toggleSecure, 
-  keyboardType = "default" 
+  keyboardType = "default",
+  showPasswordToggle = false
 }) => (
   <View style={styles.inputWrapper}>
     <Text style={styles.label}>{label}</Text>
@@ -40,9 +41,9 @@ const InputField = memo(({
         autoCapitalize="none"
         placeholderTextColor="#94A3B8"
       />
-      {toggleSecure && (
+      {showPasswordToggle && toggleSecure && (
         <TouchableOpacity onPress={toggleSecure} activeOpacity={0.7} style={styles.eyeIcon}>
-          <Ionicons name={secure ? "eye-off-outline" : "eye-outline"} size={20} color="#94A3B8" />
+          <Ionicons name={secure ? "eye-off-outline" : "eye-outline"} size={22} color="#64748B" />
         </TouchableOpacity>
       )}
     </View>
@@ -67,13 +68,27 @@ const RegisterScreen = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // États pour le modal d'alerte
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertOnPress, setAlertOnPress] = useState(null);
 
+  // Fonction pour afficher l'alerte avec un bouton OK
   const showAlert = (title, message, onPress = null) => {
-    if (Platform.OS === 'web') {
-      window.alert(`${title}: ${message}`);
-      if (onPress) onPress();
-    } else {
-      Alert.alert(title, message, onPress ? [{ text: "OK", onPress }] : []);
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setAlertOnPress(() => onPress);
+    setAlertVisible(true);
+  };
+
+  // Fonction pour fermer l'alerte
+  const closeAlert = () => {
+    setAlertVisible(false);
+    if (alertOnPress) {
+      alertOnPress();
+      setAlertOnPress(null);
     }
   };
 
@@ -116,16 +131,16 @@ const RegisterScreen = ({ navigation }) => {
 
       if (result && result.success) {
         showAlert(
-          "Succès", 
+          "✅ Succès", 
           "Votre compte a été créé avec succès. Vous pouvez maintenant vous connecter.",
           () => navigation.navigate('Login')
         );
       } else {
         const errorMsg = result?.message || "Échec de l'inscription";
-        showAlert("Attention", errorMsg);
+        showAlert("⚠️ Attention", errorMsg);
       }
     } catch (err) {
-      showAlert("Erreur réseau", "Impossible de contacter le serveur.");
+      showAlert("❌ Erreur réseau", "Impossible de contacter le serveur.");
     } finally {
       setIsLoading(false);
     }
@@ -203,9 +218,10 @@ const RegisterScreen = ({ navigation }) => {
               icon="lock-closed-outline" 
               value={formData.password} 
               onChangeText={(val) => handleChange('password', val)} 
-              placeholder="******" 
+              placeholder="••••••••" 
               secure={!showPassword} 
-              toggleSecure={() => setShowPassword(!showPassword)} 
+              toggleSecure={() => setShowPassword(!showPassword)}
+              showPasswordToggle={true}
               error={errors.password} 
             />
 
@@ -214,9 +230,10 @@ const RegisterScreen = ({ navigation }) => {
               icon="lock-closed-outline" 
               value={formData.confirmPassword} 
               onChangeText={(val) => handleChange('confirmPassword', val)} 
-              placeholder="******" 
+              placeholder="••••••••" 
               secure={!showConfirmPassword} 
-              toggleSecure={() => setShowConfirmPassword(!showConfirmPassword)} 
+              toggleSecure={() => setShowConfirmPassword(!showConfirmPassword)}
+              showPasswordToggle={true}
               error={errors.confirmPassword} 
             />
 
@@ -245,6 +262,30 @@ const RegisterScreen = ({ navigation }) => {
 
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Modal d'alerte personnalisé avec bouton OK */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={alertVisible}
+        onRequestClose={closeAlert}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{alertTitle}</Text>
+            </View>
+            <Text style={styles.modalMessage}>{alertMessage}</Text>
+            <TouchableOpacity 
+              style={styles.modalButton}
+              onPress={closeAlert}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -267,7 +308,10 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, height: 54,
   },
   input: { flex: 1, marginLeft: 10, color: '#1E293B', fontSize: 15 },
-  eyeIcon: { padding: 4 },
+  eyeIcon: { 
+    padding: 8,
+    marginLeft: 4,
+  },
   inputError: { borderColor: '#EF4444', backgroundColor: '#FEF2F2' },
   errorText: { color: '#EF4444', fontSize: 11, marginTop: 4, fontWeight: '500' },
   registerButton: {
@@ -280,6 +324,56 @@ const styles = StyleSheet.create({
   footerLink: { marginTop: 25, marginBottom: 20, alignItems: 'center' },
   footerText: { color: '#64748B', fontSize: 14 },
   footerTextBold: { color: '#10B981', fontWeight: '800' },
+  // Styles pour le Modal
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '85%',
+    maxWidth: 340,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalHeader: {
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1E293B',
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#475569',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginVertical: 12,
+  },
+  modalButton: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 40,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 });
 
 export default RegisterScreen;

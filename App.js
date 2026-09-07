@@ -6,7 +6,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import MainNavigator from './src/navigations/MainNavigator';
+import ForgotPasswordScreen from './src/screens/auth/ForgotPasswordScreen';
 import LoginScreen from './src/screens/auth/LoginScreen';
+import RegisterScreen from './src/screens/auth/RegisterScreen';
+import ResetPasswordScreen from './src/screens/auth/ResetPasswordScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -22,9 +25,19 @@ const RootNavigation = () => {
   }
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator 
+      screenOptions={{ 
+        headerShown: false,
+        animation: 'slide_from_right',
+      }}
+    >
       {userToken == null ? (
-        <Stack.Screen name="Login" component={LoginScreen} />
+        <>
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Register" component={RegisterScreen} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+          <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+        </>
       ) : (
         <Stack.Screen name="App" component={MainNavigator} />
       )}
@@ -37,7 +50,7 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <NavigationContainer>
-          <StatusBar style="auto" />
+          <StatusBar style="dark" backgroundColor="#FFFFFF" />
           <RootNavigation />
         </NavigationContainer>
       </AuthProvider>

@@ -35,9 +35,11 @@ class SpeedPredictor(nn.Module):
 
 def apply_cyclic_features(df):
     df = df.copy()
+    # On s'assure que les colonnes existent avant transformation
     h = df['hour'].astype(float)
     m = df['month'].astype(float)
     d = df['day_of_week_num'].astype(float)
+    
     df['hour_sin'] = np.sin(2 * np.pi * h / 24)
     df['hour_cos'] = np.cos(2 * np.pi * h / 24)
     df['month_sin'] = np.sin(2 * np.pi * m / 12)
@@ -56,30 +58,49 @@ def predict_speed():
         if not deliveries:
             print(json.dumps([]))
             return
+
         df = pd.DataFrame(deliveries)
+        
+        # 1. Appliquer les transformations cycliques
         df = apply_cyclic_features(df)
+
+        # 2. Définir UNIQUEMENT les features demandées
         numeric_features = [
             "latitude", "longitude", "department", "distance_to_paris_center",
             "length_km", "hour", "day_of_week_num", "month", "is_weekend",
             "is_holiday", "rush_hour", "traffic_volume", "speed",
-            "occupancy_rate", "travel_time", "traffic_state", "distance_km",
+            "travel_time", "distance_km",
+            # On ajoute les colonnes générées par apply_cyclic_features
             "hour_sin", "hour_cos", "month_sin", "month_cos", "day_sin", "day_cos"
         ]
-        categorical_features = ["road_type", "city", "road_category", "weather"]
+        
+        categorical_features = ["city", "weather"]
+        
         all_features = numeric_features + categorical_features
+        
+        # Filtrer le dataframe pour ne garder que ces colonnes
         df_model = df[all_features]
+
+        # 3. Chargement du préprocesseur (doit correspondre à ces colonnes)
         speed_pre = joblib.load(os.path.join(MODELS_DIR, "preprocessor.pkl"))
+        
         X_processed = speed_pre.transform(df_model)
         if hasattr(X_processed, "toarray"):
             X_processed = X_processed.toarray()
+
+        # 4. Chargement et prédiction avec le modèle PyTorch
         input_size = X_processed.shape[1]
         model = SpeedPredictor(input_size)
         model.load_state_dict(torch.load(os.path.join(MODELS_DIR, "best_model.pth"), map_location="cpu"))
         model.eval()
+
         tensor = torch.tensor(X_processed.astype(np.float32))
         with torch.no_grad():
             df["predicted_speed"] = model(tensor).numpy().flatten()
+
+        # Retourner le résultat en JSON
         print(df.to_json(orient="records"))
+
     except Exception as e:
         print(json.dumps({"error": str(e)}))
 

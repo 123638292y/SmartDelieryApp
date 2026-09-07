@@ -6,6 +6,7 @@ const { createServer } = require("http");
 
 // Import du gestionnaire de Sockets
 const socketHandler = require('./socket/socketHandler'); 
+BigInt.prototype.toJSON = function() { return this.toString() };
 
 const app = express();
 const server = createServer(app);
@@ -28,10 +29,13 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // 3. ROUTES API
+app.use("/api/admin/authadmin", require("./routes/AuthAdminRoutes"));         // Login & Update Profile (Admin/Driver)
+app.use('/api/admin/affectation', require('./routes/affectationRoutes'));
+app.use('/api/admin', require('./routes/StatsRoutes'));
+app.use('/api/drivers', require('./routes/driverRoutes'));
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use('/api/route', require('./routes/RoutesRoutes'));
 app.use('/api/livraisons', require('./routes/livraisonRoutes')); 
-
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 
 // Route de test de santé

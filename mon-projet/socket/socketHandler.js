@@ -1,4 +1,3 @@
-// socketHandler.js
 const socketIo = require('socket.io');
 
 let io;
@@ -7,18 +6,21 @@ module.exports = {
   init: (server) => {
     io = socketIo(server, {
       cors: {
-        origin: "*", // Autorise toutes les connexions (à restreindre en prod)
+        origin: "*", 
         methods: ["GET", "POST"]
-      }
+      },
+      // Force les websockets pour éviter les problèmes de polling sur mobile
+      transports: ['websocket'] 
     });
 
     io.on('connection', (socket) => {
       console.log('📱 Nouveau client connecté:', socket.id);
 
-      // Le livreur rejoint une "chambre" (room) basée sur son ID
       socket.on('join', (userId) => {
-        socket.join(`driver_${userId}`);
-        console.log(`Driver ${userId} a rejoint sa room.`);
+        // IMPORTANT: On force userId en String pour éviter les erreurs de type (12 vs "12")
+        const roomName = `driver_${String(userId)}`;
+        socket.join(roomName);
+        console.log(`✅ Driver ${userId} a rejoint sa room: ${roomName}`);
       });
 
       socket.on('disconnect', () => {
@@ -29,16 +31,23 @@ module.exports = {
     return io;
   },
 
-  // Fonction pour envoyer une notification à un chauffeur spécifique
   sendNotification: (driverId, title, message, data = {}) => {
     if (io) {
-      io.to(`driver_${driverId}`).emit('notification', {
+      const roomName = `driver_${String(driverId)}`;
+      
+      // On "aplatit" l'objet envoyé pour que le frontend reçoive tout au même niveau
+      const payload = {
         title,
         message,
-        data,
+        ...data, // On ajoute id, created_at, etc.
         timestamp: new Date()
-      });
-      console.log(`Notification envoyée au driver ${driverId}`);
+      };
+
+      io.to(roomName).emit('notification', payload);
+      
+      console.log(`📡 Notification envoyée à ${roomName}:`, title);
+    } else {
+      console.error("❌ Erreur: L'instance 'io' n'est pas initialisée !");
     }
   }
 };

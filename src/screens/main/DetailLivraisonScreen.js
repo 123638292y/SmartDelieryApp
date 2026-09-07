@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 
 import Loading from '../../components/ui/Loading';
-
 import { useAuth } from '../../contexts/AuthContext';
 import { livraisonApi } from '../../services/api';
 
@@ -26,11 +25,11 @@ function QuantityModal({ visible, onClose, onSave, item }) {
   const [quantity, setQuantity] = useState('0');
 
   useEffect(() => {
-    if (item) setQuantity(Math.round(item.qte).toString()); // Affichage entier
+    if (item) setQuantity(Math.round(item.qte).toString());
   }, [item, visible]);
 
   const adjustQty = (val) => {
-    const current = parseInt(quantity || 0); // Utilisation de parseInt pour rester en entier
+    const current = parseInt(quantity || 0);
     const next = Math.max(0, current + val);
     setQuantity(next.toString());
   };
@@ -59,7 +58,7 @@ function QuantityModal({ visible, onClose, onSave, item }) {
                 style={styles.qtyInput}
                 keyboardType="numeric"
                 value={quantity}
-                onChangeText={(text) => setQuantity(text.replace(/[^0-9]/g, ''))} // Autorise uniquement les chiffres
+                onChangeText={(text) => setQuantity(text.replace(/[^0-9]/g, ''))}
                 selectTextOnFocus
               />
 
@@ -94,7 +93,7 @@ const STATUS_COLORS = { O: '#3B82F6', T: '#10B981', C: '#EF4444' };
 
 const formatAmount = (value) => {
   const num = Number(value);
-  return isNaN(num) ? '0.00 €' : num.toFixed(2) + ' €'; // Passage en Euro
+  return isNaN(num) ? '0.00 €' : num.toFixed(2) + ' €';
 };
 
 export default function DetailLivraisonScreen({ route, navigation }) {
@@ -125,6 +124,30 @@ export default function DetailLivraisonScreen({ route, navigation }) {
   useEffect(() => {
     fetchDetail();
   }, [id_doc]);
+
+  // FONCTION POUR OUVRIR WHATSAPP
+  const handleWhatsApp = () => {
+    const phone = delivery.client_phone || delivery.mobil;
+    if (!phone) {
+      Alert.alert("Erreur", "Aucun numéro de téléphone trouvé.");
+      return;
+    }
+
+    // تنظيف الرقم وزيادة كود البلاد (مثلا 216 لتونس)
+    const cleanPhone = phone.replace(/\D/g, '');
+    const finalPhone = cleanPhone.startsWith('216') ? cleanPhone : `216${cleanPhone}`;
+    
+    const message = `Bonjour ${delivery.client_name}, je suis le livreur. Je suis en route pour votre livraison.`;
+    const url = `whatsapp://send?phone=${finalPhone}&text=${encodeURIComponent(message)}`;
+
+    Linking.canOpenURL(url).then(supported => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        Alert.alert("Erreur", "WhatsApp n'est pas installé sur votre téléphone.");
+      }
+    });
+  };
 
   const handleUpdateStatus = async (newStatus) => {
     const label = newStatus === 'T' ? 'confirmer' : 'annuler';
@@ -192,11 +215,18 @@ export default function DetailLivraisonScreen({ route, navigation }) {
             <Text style={styles.sectionTitle}>Client</Text>
           </View>
           <Text style={styles.value}>{delivery.client_name || 'Client sans nom'}</Text>
-          {delivery.client_phone && (
-            <TouchableOpacity style={styles.phoneContainer} onPress={() => Linking.openURL(`tel:${delivery.client_phone}`)}>
-              <Ionicons name="call" size={18} color="#2563EB" />
-              <Text style={styles.link}>{delivery.client_phone}</Text>
-            </TouchableOpacity>
+          
+          {(delivery.client_phone || delivery.mobil) && (
+            <View style={styles.contactContainer}>
+              <TouchableOpacity style={styles.phoneContainer} onPress={() => Linking.openURL(`tel:${delivery.client_phone || delivery.mobil}`)}>
+                <Ionicons name="call" size={18} color="#2563EB" />
+                <Text style={styles.link}>{delivery.client_phone || delivery.mobil}</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.whatsappIcon} onPress={handleWhatsApp}>
+                <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -242,16 +272,10 @@ export default function DetailLivraisonScreen({ route, navigation }) {
               </View>
             </TouchableOpacity>
           ))}
-
-          {delivery.total_qte_doc > 0 && (
-              <View style={styles.totalQtyRow}>
-                  <Text style={styles.totalQtyText}>Total Unités : {Math.round(delivery.total_qte_doc)}</Text>
-              </View>
-          )}
         </View>
 
         {/* TOTAL TTC CARD */}
-        <View style={[styles.card, { backgroundColor: '#F0FDFA', borderColor: '#10B981', borderLightWidth: 1 }]}>
+        <View style={[styles.card, { backgroundColor: '#F0FDFA', borderColor: '#10B981', borderWidth: 1 }]}>
           <View style={styles.rowBetween}>
             <Text style={[styles.totalLabel, { color: '#065F46' }]}>Total TTC à collecter</Text>
             <Text style={styles.totalValue}>{formatAmount(delivery.tot_ttc)}</Text>
@@ -261,6 +285,15 @@ export default function DetailLivraisonScreen({ route, navigation }) {
         {/* ACTIONS */}
         {!isFinished && (
           <View style={styles.actionsContainer}>
+            {/* WHATSAPP BUTTON */}
+            <TouchableOpacity 
+                style={[styles.whatsappButton]}
+                onPress={handleWhatsApp}
+            >
+                <Ionicons name="logo-whatsapp" size={24} color="white" />
+                <Text style={styles.whatsappButtonText}>Contacter via WhatsApp</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity 
                 style={[styles.mainButton, { backgroundColor: STATUS_COLORS.T }]}
                 onPress={() => handleUpdateStatus('T')}
@@ -301,7 +334,9 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 },
   sectionTitle: { fontSize: 11, fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.5 },
   value: { fontSize: 16, color: '#334155', fontWeight: '500' },
-  phoneContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8 },
+  contactContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
+  phoneContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  whatsappIcon: { padding: 5 },
   link: { fontSize: 16, color: '#2563EB', fontWeight: '700' },
   lineRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   lineLabel: { fontSize: 15, fontWeight: '600', color: '#1E293B', marginBottom: 2 },
@@ -311,9 +346,9 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   totalLabel: { fontSize: 14, fontWeight: '700' },
   totalValue: { fontWeight: '900', color: '#059669', fontSize: 22 },
-  totalQtyRow: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  totalQtyText: { textAlign: 'right', fontWeight: '700', color: '#64748B', fontSize: 12 },
   actionsContainer: { marginTop: 10, gap: 12, paddingBottom: 40 },
+  whatsappButton: { height: 55, borderRadius: 14, backgroundColor: '#25D366', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, marginBottom: 5 },
+  whatsappButtonText: { color: 'white', fontWeight: '800', fontSize: 16 },
   mainButton: { height: 60, borderRadius: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 },
   mainButtonText: { color: 'white', fontWeight: '800', fontSize: 16 },
   cancelButton: { height: 50, borderRadius: 14, borderWidth: 1, borderColor: '#FED7D7', justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8 },

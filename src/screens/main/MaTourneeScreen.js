@@ -46,6 +46,7 @@ export default function MaTourneeScreen({ navigation }) {
   const [center, setCenter] = useState(MOISSY_COORDS);
   const [todayStr, setTodayStr] = useState('');
 
+  // Formater la date du jour
   useEffect(() => {
     try {
       const now = new Date();
@@ -59,11 +60,13 @@ export default function MaTourneeScreen({ navigation }) {
   }, []);
 
   const fetchTournee = useCallback(async (showLoading = true) => {
+    // Sécurité : Si pas de token ou pas de driver, on ne fait rien (évite les erreurs au logout)
     const identificationNo = driverData?.identification_no || driverData?.idNo;
     if (!identificationNo || !userToken) {
       setIsLoading(false);
       return;
     }
+
     try {
       if(showLoading) setIsLoading(true);
       const response = await livraisonApi.getLivraisonsToday(identificationNo, userToken);
@@ -72,7 +75,7 @@ export default function MaTourneeScreen({ navigation }) {
         const dataReceived = response.livraisons || [];
         setLivraisons(dataReceived);
         
-        // Ajuster le centre sur le premier client si possible
+        // Ajuster le centre de la carte sur le premier client
         if (dataReceived.length > 0) {
             const firstLat = toNum(dataReceived[0].latitude);
             const firstLng = toNum(dataReceived[0].longitude);
@@ -83,13 +86,17 @@ export default function MaTourneeScreen({ navigation }) {
       }
     } catch (error) {
       console.error("Fetch Error:", error);
-      Alert.alert("Erreur", "Impossible de charger la tournée.");
+      // On ne montre l'alerte que si on est toujours connecté
+      if (userToken) {
+        Alert.alert("Erreur", "Impossible de charger la tournée.");
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
   }, [driverData, userToken]);
 
+  // Recharger les données quand l'écran revient au premier plan
   useFocusEffect(
     useCallback(() => {
       fetchTournee();
@@ -127,6 +134,7 @@ export default function MaTourneeScreen({ navigation }) {
         </View>
       </View>
 
+      {/* Timeline du haut */}
       <TourneeTimeline livraisons={livraisons} />
 
       <View style={styles.content}>
@@ -135,7 +143,8 @@ export default function MaTourneeScreen({ navigation }) {
             <FlatList
               style={styles.list}
               data={livraisons}
-              keyExtractor={(item) => item.id.toString()}
+              // CORRECTION: Clé unique pour éviter l'erreur duplicate key .$34
+              keyExtractor={(item, index) => item.id ? item.id.toString() + index : index.toString()}
               contentContainerStyle={styles.listContent}
               refreshControl={
                 <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={[colors.primary]} />
@@ -164,14 +173,12 @@ export default function MaTourneeScreen({ navigation }) {
             <MapView 
               center={center}
               markers={[
-                // 1. Toujours afficher le dépôt en vert
                 { 
                   lat: MOISSY_COORDS.lat, 
                   lng: MOISSY_COORDS.lng, 
                   title: "Dépôt: Urban Food", 
                   isStart: true 
                 },
-                // 2. Afficher les clients
                 ...livraisons.map((l, index) => ({
                   lat: toNum(l.latitude),
                   lng: toNum(l.longitude),
@@ -185,7 +192,7 @@ export default function MaTourneeScreen({ navigation }) {
         )}
       </View>
 
-      {/* Bouton pour aller vers l'itinéraire optimisé */}
+      {/* Bouton flottant GPS */}
       <TouchableOpacity 
         style={styles.floatingButton}
         onPress={() => navigation.navigate('ItineraireOptimise')}

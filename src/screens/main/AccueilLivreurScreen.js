@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   SafeAreaView,
@@ -11,10 +11,14 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import io from 'socket.io-client'; // 1. استيراد مكتبة الـ Socket
 
 import { useAuth } from '../../contexts/AuthContext';
 import { livraisonApi, notificationApi } from '../../services/api';
 import { colors } from '../../theme/colors';
+
+// استبدل هذا بالـ IP الخاص بسيرفرك
+const SOCKET_URL = "http://192.168.20.141:5000"; 
 
 export default function AccueilLivreurScreen({ navigation }) {
   const { driverData, userToken } = useAuth();
@@ -27,7 +31,29 @@ export default function AccueilLivreurScreen({ navigation }) {
     total: 0
   });
 
-  const fetchStats = useCallback(async () => {
+useEffect(() => {
+  if (!driverData?.id) return;
+
+  const socket = io(SOCKET_URL, {
+    transports: ['websocket']
+  });
+
+  socket.on('connect', () => {
+    console.log("✅ Accueil: Socket connecté");
+    // On envoie l'ID comme une chaîne de caractères
+    socket.emit('join', String(driverData.id)); 
+  });
+
+  socket.on('notification', (data) => {
+    console.log("📩 Nouveau message reçu, mise à jour du badge");
+    // On incrémente le badge en temps réel
+    setUnreadCount(prev => prev + 1);
+  });
+
+  return () => socket.disconnect();
+}, [driverData?.id]);
+
+const fetchStats = useCallback(async () => {
     const matricule = driverData?.identification_no || driverData?.idNo;
 
     if (!matricule || !userToken) {
@@ -43,8 +69,6 @@ export default function AccueilLivreurScreen({ navigation }) {
           remaining: Number(res.stats.remaining) || 0,
           total: Number(res.stats.total) || 0
         });
-        console.log(res)
-
       }
     } catch (error) {
       console.error("Erreur stats front:", error);
@@ -53,20 +77,28 @@ export default function AccueilLivreurScreen({ navigation }) {
     }
   }, [driverData, userToken]);
 
-  const fetchUnreadCount = useCallback(async () => {
-    const driverId = driverData?.id; 
-    if (!driverId || !userToken) return;
+const fetchUnreadCount = useCallback(async () => {
+  const driverId = driverData?.id; 
+  console.log("🔍 Tentative fetchUnreadCount pour ID:", driverId); // LOG 1
 
-    try {
-      const res = await notificationApi.getUnreadCount(driverId, userToken);
-      if (res.success) {
-        setUnreadCount(res.count);
-      }
-    } catch (error) {
-      console.error("Erreur unread count:", error);
+  if (!driverId || !userToken) {
+    console.log("⚠️ ID ou Token manquant dans Accueil");
+    return;
+  }
+
+  try {
+    const res = await notificationApi.getUnreadCount(driverId, userToken);
+    console.log("📡 Réponse API UnreadCount:", res); // LOG 2
+
+    if (res.success) {
+      setUnreadCount(res.count);
     }
-  }, [driverData, userToken]);
+  } catch (error) {
+    console.error("❌ Erreur API unread count:", error);
+  }
+}, [driverData, userToken]);
 
+  // تحديث البيانات كلما عادت الشاشة للتركيز (Focus)
   useFocusEffect(
     useCallback(() => {
       fetchStats();
@@ -78,6 +110,7 @@ export default function AccueilLivreurScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
       
+      {/* HEADER */}
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Bonjour,</Text>
@@ -89,6 +122,8 @@ export default function AccueilLivreurScreen({ navigation }) {
           onPress={() => navigation.navigate('Notifications')}
         >
           <Ionicons name="notifications-outline" size={26} color="#1E293B" />
+          
+          {/* BADGE الإشعارات */}
           {unreadCount > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
@@ -101,6 +136,7 @@ export default function AccueilLivreurScreen({ navigation }) {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
+        {/* STATS CARDS */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <View style={styles.iconCircleGreen}>
@@ -127,6 +163,7 @@ export default function AccueilLivreurScreen({ navigation }) {
           </View>
         </View>
 
+        {/* MAIN ACTION CARD */}
         <TouchableOpacity 
           style={styles.mainCard} 
           onPress={() => navigation.navigate('MaTournee')}
@@ -146,8 +183,10 @@ export default function AccueilLivreurScreen({ navigation }) {
             </View>
           </View>
           
+          {/* خلفية جمالية للكارت */}
           <Ionicons name="navigate-circle" size={100} color="rgba(255,255,255,0.15)" style={styles.bgIcon} />
         </TouchableOpacity>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -226,6 +265,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start'
   },
   actionButtonText: { color: '#FFF', fontWeight: 'bold', marginRight: 10 },
   bgIcon: { position: 'absolute', right: -15, bottom: -15 },
